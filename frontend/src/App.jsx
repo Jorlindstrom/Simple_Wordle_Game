@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Settings from './Settings';
-import { selectWord } from './logic/selectWord';
 import { wordle } from './logic/wordle';
+import { getRandomWord } from './wordService';
 import './App.css';
-
-const words = ["storm", "stark", "start", "sword", "mango", "piano", "banana", "kuslig", "tavlan"]; // Example words
 
 function App() {
   const [wordLength, setWordLength] = useState(5);
@@ -17,43 +15,82 @@ function App() {
   const [warning, setWarning] = useState("");
   const [startTime, setStartTime] = useState(null);
   const [timeTaken, setTimeTaken] = useState(null);
-  const [showSettings, setShowSettings] = useState(true); // State to manage which page to show
+  const [showSettings, setShowSettings] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const startGame = () => {
-    const result = selectWord(words, wordLength, allowDuplicates);
-    if (result.error) {
-      setWarning(result.error);
-    } else {
-      setCurrentWord(result.word);
-      setGuesses([]);
-      setInput("");
-      setGameOver(false);
-      setWon(false);
-      setWarning("");
-      setStartTime(Date.now());
-      setShowSettings(false); // Hide settings and show game
+  // Asynkron startGame-funktion som använder API
+  const startGame = async () => {
+    setLoading(true);
+    setWarning("");
+    
+    try {
+      console.log('Startar spel med inställningar:', { wordLength, allowDuplicates });
+      const result = await getRandomWord(wordLength, allowDuplicates);
+      
+      if (result.error) {
+        console.error('Fel vid start av spel:', result.error);
+        setWarning(result.error);
+      } else {
+        console.log('Spel startat med ord:', result.word);
+        setCurrentWord(result.word);
+        setGuesses([]);
+        setInput("");
+        setGameOver(false);
+        setWon(false);
+        setStartTime(Date.now());
+        setShowSettings(false); // Dölj inställningar och visa spelet
+      }
+    } catch (error) {
+      console.error('Oväntat fel vid start av spel:', error);
+      setWarning("Kunde inte starta spelet: " + (error.message || "Okänt fel"));
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Hämta ett testord när inställningarna ändras (i inställningsvyn)
   useEffect(() => {
-    const result = selectWord(words, wordLength, allowDuplicates);
-    if (result.error) {
-      setWarning(result.error);
-    } else {
-      setCurrentWord(result.word);
-      setWarning("");
+    if (showSettings) {
+      const fetchWord = async () => {
+        try {
+          console.log('Förhandsgranskar ord med inställningar:', { wordLength, allowDuplicates });
+          const result = await getRandomWord(wordLength, allowDuplicates);
+          
+          if (result.error) {
+            console.warn('Kunde inte förhandsgranska ord:', result.error);
+            setWarning(result.error);
+          } else {
+            console.log('Förhandsgranskade ordet:', result.word);
+            setCurrentWord(result.word);
+            setWarning("");
+          }
+        } catch (error) {
+          console.error('Fel vid förhandsgranskning av ord:', error);
+          setWarning("Fel vid hämtning av ord: " + (error.message || "Okänt fel"));
+        }
+      };
+      
+      fetchWord();
     }
-  }, [wordLength, allowDuplicates, words]);
+  }, [wordLength, allowDuplicates, showSettings]);
 
+  // Beräkna tid när spelet är över
   useEffect(() => {
     if (gameOver && startTime) {
       const endTime = Date.now();
-      setTimeTaken((endTime - startTime) / 1000); // Time taken in seconds
+      setTimeTaken((endTime - startTime) / 1000);
     }
   }, [gameOver, startTime]);
 
+  // Hantera gissning
   const handleGuess = () => {
+    if (!currentWord) {
+      setWarning("Inget ord har hämtats från servern.");
+      return;
+    }
+    
     if (input.length !== wordLength || gameOver) return;
+    
     const feedback = wordle(input, currentWord);
     setGuesses([...guesses, { guess: input, feedback }]);
     setInput("");
@@ -67,15 +104,16 @@ function App() {
     }
   };
 
+  // Starta ett nytt spel
   const handleRestart = () => {
     startGame();
   };
 
-  // Function to format time in minutes and seconds
+  // Formatterar tid till läsbart format
   const formatTime = (timeInSeconds) => {
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes} minutes and ${seconds} seconds`;
+    return `${minutes} ${minutes === 1 ? 'minut' : 'minuter'} och ${seconds} ${seconds === 1 ? 'sekund' : 'sekunder'}`;
   };
 
   return (
@@ -87,14 +125,22 @@ function App() {
           allowDuplicates={allowDuplicates}
           setAllowDuplicates={setAllowDuplicates}
           startGame={startGame}
-          words={words}
+          loading={loading}
+          warning={warning}
         />
       ) : (
         <>
           <h1>Wordle-like Game</h1>
           {warning && <div className="warning">{warning}</div>}
           <div>
-            <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleGuess()} disabled={gameOver} />
+            <input 
+              value={input} 
+              onChange={(e) => setInput(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && handleGuess()} 
+              disabled={gameOver} 
+              maxLength={wordLength}
+              placeholder={`Ange ett ${wordLength}-bokstavs ord`}
+            />
             <button onClick={handleGuess} disabled={gameOver}>Guess</button>
           </div>
           <div>

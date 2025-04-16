@@ -1,37 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { selectWord } from './logic/selectWord';
+import React from 'react';
 
-const Settings = ({ wordLength, setWordLength, allowDuplicates, setAllowDuplicates, startGame, words }) => {
-  const [warning, setWarning] = useState("");
-
-  useEffect(() => {
-    const result = selectWord(words, wordLength, allowDuplicates);
-    if (result.error) {
-      setWarning(result.error);
-    } else {
-      setWarning("");
-    }
-  }, [wordLength, allowDuplicates, words]); // Ensure the dependency array is constant in size and order
-
+function Settings({ 
+  wordLength, 
+  setWordLength, 
+  allowDuplicates, 
+  setAllowDuplicates, 
+  startGame, 
+  loading,
+  warning 
+}) {
   return (
     <div className="settings">
-      <h2>Game Settings</h2>
+      <h1>Wordle-like Game Settings</h1>
+      {warning && <div className="warning">{warning}</div>}
       <div>
         <label>
           Word Length:
-          <input type="number" value={wordLength} onChange={(e) => setWordLength(Number(e.target.value))} />
+          <input
+            type="number"
+            min="3"
+            max="10"
+            value={wordLength}
+            onChange={(e) => setWordLength(parseInt(e.target.value))}
+          />
         </label>
       </div>
       <div>
         <label>
-          Allow Duplicates:
-          <input type="checkbox" checked={allowDuplicates} onChange={(e) => setAllowDuplicates(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={allowDuplicates}
+            onChange={(e) => setAllowDuplicates(e.target.checked)}
+          />
+          Allow Duplicate Letters
         </label>
       </div>
-      {warning && <p className="warning">{warning}</p>}
-      <button onClick={startGame} disabled={!!warning}>Start Game</button>
+      <button onClick={startGame} disabled={loading}>
+        {loading ? 'Loading...' : 'Start Game'}
+      </button>
     </div>
   );
-};
+}
 
 export default Settings;

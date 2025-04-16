@@ -1,48 +1,60 @@
 import express from "express";
 import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-
-// Hantera __dirname i ES-moduler
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { selectWord } from './logic/selectWord.js';
 
 const app = express();
 const PORT = 5080;
 
-// Endpoint för att hämta ett slumpmässigt ord
-app.get("/random-word", async (req, res) => {
+
+async function getWordsFromFile() {
   try {
-    const filePath = path.join(__dirname, "words.json");
-    const data = await fs.readFile(filePath, "utf8");
-    const words = JSON.parse(data).words;
-    const randomWord = words[Math.floor(Math.random() * words.length)];
-    res.json({ word: randomWord });
-  } catch (err) {
-    console.error("Error reading words.json:", err);
-    res.status(500).send("Server Error");
+    const wordsData = await fs.readFile('./words.json', 'utf8');
+    const parsedData = JSON.parse(wordsData);
+    const words = parsedData.words || [];
+
+    //res.status(200).json({ words });
+    console.log('Extraherad words-array:', words);
+    return words;
+
+  } catch (error) {
+    console.error('Fel vid läsning av words.json:', error);
+    return [];
+  }
+}
+
+// API-endpoint med asynkron hantering
+app.get('/api/random-word', async (req, res) => {
+  try {
+    console.log('Mottog förfrågan med parametrar:', req.query);
+    
+    const length = parseInt(req.query.length) || 5;
+    const allowDuplicates = req.query.allowDuplicates === 'true';
+    
+    console.log('Hämtar ord från fil...');
+    const words = await getWordsFromFile();
+    
+    console.log(`Hittade ${words.length} ord totalt`);
+    
+    if (!words || words.length === 0) {
+      console.log('Inga ord hittades i filen');
+      return res.status(404).json({ error: 'Inga ord hittades i databasen' });
+    }
+    
+    console.log('Använder selectWord med parametrar:', { length, allowDuplicates });
+    const result = selectWord(words, length, allowDuplicates);
+    
+    if (result.error) {
+      console.log('selectWord returnerade ett fel:', result.error);
+      return res.status(404).json({ error: result.error });
+    }
+    
+    console.log('Valt ord:', result.word);
+    res.json({ data: result.word });
+  } catch (error) {
+    console.error('Fel vid hantering av förfrågan:', error);
+    res.status(500).json({ error: 'Något gick fel på servern' });
   }
 });
-
-app.use((req, res, next) => {
-    console.log(req.method, req.url);
-    next();
-})
-
-app.get("/", (req, res) => {
-  res.send("Hello World");
-});
-
-// app.get('/api/tasks', (req, res) => {
-//     res.json({
-//       data: [
-//         { label: 'learnHTML', completed: true },
-//         { label: 'learnCSS', completed: false },
-//         { label: 'learnJS', completed: false },
-//         { label: 'learnReact', completed: false },
-//       ],
-//     });
-//   });
 
 // Starta servern
 app.listen(PORT, () => {
