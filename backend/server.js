@@ -12,7 +12,6 @@ async function getWordsFromFile() {
     const parsedData = JSON.parse(wordsData);
     const words = parsedData.words || [];
 
-    //res.status(200).json({ words });
     console.log('Extraherad words-array:', words);
     return words;
 
